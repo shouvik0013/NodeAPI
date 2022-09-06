@@ -5,6 +5,7 @@ const multer = require("multer");
 
 const mongoose = require("mongoose");
 const feedRoutes = require("./routes/feed");
+const authRoutes = require("./routes/auth");
 
 const app = express();
 
@@ -57,15 +58,18 @@ app.use((req, res, next) => {
     next(); // calling next middleware
 });
 
-// ROUTES
+/* ROUTES */
 app.use("/feed", feedRoutes);
+app.use("/auth", authRoutes);
 
 app.use((error, req, res, next) => {
     console.log(">>>>>>>>>>>>ERROR HANDLING MIDDLEWARE", error);
     const status = error.statusCode || 500; // default value is 500
     const message = error.message;
+    const data = error.data || null;
     res.status(status).json({
         message: message,
+        data: data
     });
 });
 

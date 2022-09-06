@@ -1,13 +1,19 @@
-const express = require("express");
+/* NATIVE MODULES */
+const path = require("path");
 const os = require("os");
 const osType = os.type();
 
-const path = require("path");
+/* THIRD PARTY PACKAGES */
+const express = require("express");
 const { validationResult } = require("express-validator");
 const { StatusCodes } = require("http-status-codes");
-const Post = require("../models/post");
-const deleteFile = require("../helpers/deleteFile").deleteFile;
 
+/* MODELS */
+const Post = require("../models/post");
+const User = require("../models/user");
+
+/* LOCAL HELPER FUNCTIONS */
+const deleteFile = require("../helpers/deleteFile").deleteFile;
 /**
  *
  * @param {express.Request} req
@@ -98,21 +104,25 @@ exports.createPost = async (req, res, next) => {
                 ? req.file.path.replace("\\", "/")
                 : req.file.path; // IT IS THE PATH WHERE MULTER STORED THE IMAGE FILE
 
+        // CREATING POST
         const post = new Post({
             title: title,
             content: content,
             imageUrl: imageUrl,
-            creator: {
-                name: "Shouvik",
-            },
+            creator: req?.userId
         });
 
-        const result = await post.save();
-        console.log(result);
+        const result = await post.save(); // SAVING THE POST
+        console.log(">>>>>>>>>Result of saving a new post", result);
+
+        const creator = await User.findById(req?.userId); // FETCHING THE USER
+        creator.posts.push(post);
+        await creator.save(); // UPDATING & SAVING THE USER
 
         res.status(StatusCodes.CREATED).json({
             message: "Successfully created a post",
-            post: result,
+            post: post,
+            creator: {_id: creator._id, name: creator.name, }
         });
     } catch (error) {
         console.log(">>>>>>>>>>>>>>>>ERROR REACHED HERE");
@@ -158,10 +168,17 @@ module.exports.updatePost = async (req, res, next) => {
             throw error;
         }
 
-        const post = await Post.findById(postId);
+        const post = await Post.findById(postId);   // FETCHING A POST BY ID
         if (!post) {
             const error = new Error("Couldn't find the post");
             error.statusCode = StatusCodes.NOT_FOUND;
+            throw error;
+        }
+
+        // CHECKING THE USER
+        if(post.creator._id.toString() !== req?.userId) {
+            const error = new Error("Not authorized");
+            error.statusCode = StatusCodes.FORBIDDEN;
             throw error;
         }
 
@@ -202,8 +219,19 @@ module.exports.deletePost = async (req, res, next) => {
         }
 
         // CHECK LOGGEDIN USER
+        if(post.creator._id.toString() !== req?.userId) {
+            const error = new Error("Not authorized");
+            error.statusCode = StatusCodes.FORBIDDEN;
+            throw error;
+        }
         deleteFile(post.imageUrl);
         const postDeleteResult = await Post.findByIdAndRemove(postId);
+        const creator = await User.findById(req?.userId);
+        // creator.posts.filter(pt => pt._id.toString() !== post._id.toString());
+        // await creator.save();
+        creator.posts.pull(postId);
+        await creator.save();
+    
         return res.status(StatusCodes.OK).json({ message: "Post deleted" });
     } catch (error) {
         console.log(">>>>>>>>>>>>>>>>ERROR REACHED HERE");
