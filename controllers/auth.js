@@ -91,3 +91,58 @@ module.exports.loginUser = async (req, res, next) => {
         next(error);
     }
 };
+
+
+/**
+ *
+ * @param {express.Request} req
+ * @param {express.Response} res
+ * @param {Function} next
+ */
+ module.exports.userStatus = async (req, res, next) => {
+    try {
+        const userId = req?.userId;
+        const user = await User.findById(userId);
+        if(!user) {
+            const error = new Error("User not found");
+            error.statusCode = StatusCodes.BAD_REQUEST;
+            throw error;
+        }
+        res.status(StatusCodes.OK).json({status: user.status});
+    } catch (error) {
+        console.log(">>>>>>>>>>>>>>>>ERROR REACHED HERE");
+        if (!error.statusCode) {
+            error.statusCode = StatusCodes.UNPROCESSABLE_ENTITY;
+        }
+        next(error);
+    }
+}
+
+
+/**
+ *
+ * @param {express.Request} req
+ * @param {express.Response} res
+ * @param {Function} next
+ */
+module.exports.updateUserStatus = async (req, res, next) => {
+    try {
+        const newStatus = req.body?.status;
+        const user = await User.findById(req?.userId);
+        if(!user) {
+            const error = new Error("User not found");
+            error.statusCode = StatusCodes.BAD_REQUEST;
+            throw error;
+        }
+        user.status = newStatus;
+        // SAVE USER BACK TO DATABASE
+        await user.save();
+        res.status(StatusCodes.OK).json({message: 'User status updated'});
+    } catch (error) {
+        console.log(">>>>>>>>>>>>>>>>ERROR REACHED HERE");
+        if (!error.statusCode) {
+            error.statusCode = StatusCodes.UNPROCESSABLE_ENTITY;
+        }
+        next(error);
+    }
+}

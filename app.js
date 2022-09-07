@@ -40,7 +40,9 @@ const fileFilter = (req, file, cb) => {
 };
 
 app.use(express.json());
-app.use(multer({ storage: fileStorage, fileFilter: fileFilter }).single('image')); // REGISTERING MULTER
+app.use(
+    multer({ storage: fileStorage, fileFilter: fileFilter }).single("image")
+); // REGISTERING MULTER
 app.use("/images", express.static(path.join(__dirname, "images")));
 
 app.use((req, res, next) => {
@@ -69,7 +71,7 @@ app.use((error, req, res, next) => {
     const data = error.data || null;
     res.status(status).json({
         message: message,
-        data: data
+        data: data,
     });
 });
 
@@ -78,6 +80,11 @@ mongoose
         "mongodb+srv://devusr:ddreb0660@cluster0.fyweo.mongodb.net/messages?retryWrites=true&w=majority"
     )
     .then((result) => {
-        app.listen(8080);
+        const server = app.listen(8080);
+        const io = require("./socket").init(server);
+        console.log("Connected and listening");
+        io.on("connection", (sockect) => {
+            console.log("Client connected!!");
+        });
     })
     .catch((err) => console.log(err));

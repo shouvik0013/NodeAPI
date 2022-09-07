@@ -13,6 +13,7 @@ const router = express.Router();
 
 router.get("/posts", isAuth, feedController.getPosts);
 
+
 router.post(
     "/posts",
     [

@@ -14,6 +14,7 @@ const User = require("../models/user");
 
 /* LOCAL HELPER FUNCTIONS */
 const deleteFile = require("../helpers/deleteFile").deleteFile;
+const io = require("../socket");
 /**
  *
  * @param {express.Request} req
@@ -27,12 +28,14 @@ exports.getPosts = async (req, res, next) => {
         const totalPosts = await Post.find().countDocuments();
 
         const posts = await Post.find()
+            .populate("creator")
+            .sort({ createdAt: -1 })
             .skip((currentPage - 1) * perPage)
             .limit(perPage);
         res.status(StatusCodes.OK).json({
             message: "Fetched posts successfully",
             posts: posts,
-            totalItems: totalPosts
+            totalItems: totalPosts,
         });
     } catch (error) {
         console.log(">>>>>>>>>>>>>>>>ERROR REACHED HERE");
@@ -109,7 +112,7 @@ exports.createPost = async (req, res, next) => {
             title: title,
             content: content,
             imageUrl: imageUrl,
-            creator: req?.userId
+            creator: req?.userId,
         });
 
         const result = await post.save(); // SAVING THE POST
@@ -119,10 +122,18 @@ exports.createPost = async (req, res, next) => {
         creator.posts.push(post);
         await creator.save(); // UPDATING & SAVING THE USER
 
+        io.getIO().emit("posts", {
+            action: "create",
+            post: {
+                ...post._doc,
+                creator: { _id: creator._id.toString(), name: creator.name },
+            },
+        });
+
         res.status(StatusCodes.CREATED).json({
             message: "Successfully created a post",
             post: post,
-            creator: {_id: creator._id, name: creator.name, }
+            creator: { _id: creator._id, name: creator.name },
         });
     } catch (error) {
         console.log(">>>>>>>>>>>>>>>>ERROR REACHED HERE");
@@ -168,7 +179,7 @@ module.exports.updatePost = async (req, res, next) => {
             throw error;
         }
 
-        const post = await Post.findById(postId);   // FETCHING A POST BY ID
+        const post = await Post.findById(postId).populate("creator"); // FETCHING A POST BY ID
         if (!post) {
             const error = new Error("Couldn't find the post");
             error.statusCode = StatusCodes.NOT_FOUND;
@@ -176,7 +187,7 @@ module.exports.updatePost = async (req, res, next) => {
         }
 
         // CHECKING THE USER
-        if(post.creator._id.toString() !== req?.userId) {
+        if (post.creator._id.toString() !== req?.userId) {
             const error = new Error("Not authorized");
             error.statusCode = StatusCodes.FORBIDDEN;
             throw error;
@@ -188,7 +199,8 @@ module.exports.updatePost = async (req, res, next) => {
         post.title = title;
         post.content = content;
         post.imageUrl = imageUrl;
-        const postSaveResult = await post.save();
+        const postSaveResult = await post.save(); // SAVING THE UPDATED POST
+        io.getIO().emit("posts", { action: "update", post: postSaveResult });
         res.status(StatusCodes.OK).json({
             message: "Post updated",
             post: postSaveResult,
@@ -219,7 +231,7 @@ module.exports.deletePost = async (req, res, next) => {
         }
 
         // CHECK LOGGEDIN USER
-        if(post.creator._id.toString() !== req?.userId) {
+        if (post.creator._id.toString() !== req?.userId) {
             const error = new Error("Not authorized");
             error.statusCode = StatusCodes.FORBIDDEN;
             throw error;
@@ -231,7 +243,7 @@ module.exports.deletePost = async (req, res, next) => {
         // await creator.save();
         creator.posts.pull(postId);
         await creator.save();
-    
+        io.getIO().emit("posts", { action: "delete", post: postId });
         return res.status(StatusCodes.OK).json({ message: "Post deleted" });
     } catch (error) {
         console.log(">>>>>>>>>>>>>>>>ERROR REACHED HERE");
